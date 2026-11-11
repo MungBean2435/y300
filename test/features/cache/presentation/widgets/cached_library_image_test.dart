@@ -1214,91 +1214,6 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(cacheService.decodeFailures, isEmpty);
   });
-}
-
-ImageCacheRequest _request(String cacheKey) {
-  return ImageCacheRequest(
-    cacheKey: cacheKey,
-    sourceUrl: 'https://bbs.yamibo.com/data/attachment/forum/$cacheKey.jpg',
-    ownerType: ImageCacheOwnerType.thread,
-    ownerId: '100',
-    role: ImageCacheRole.threadInline,
-  );
-}
-
-Finder get _loadingIndicator =>
-    find.byKey(const Key('cached-library-image-loading-indicator'));
-
-Widget _localFallbackHarness(
-  ImageCacheService cacheService, {
-  String cacheKey = 'thread-image',
-  String? preferredLocalPath,
-  Future<bool> Function(String)? predicate,
-  Widget? fallback = const SizedBox(key: Key('local-file-fallback')),
-  Widget? errorPlaceholder = const SizedBox(key: Key('error-placeholder')),
-  EncodedImageDimensionProbe? dimensionProbe,
-  ValueChanged<String>? onLocalPathResolved,
-  ValueChanged<Size>? onImageResolved,
-  VoidCallback? onImageFailed,
-  bool showDelayedLoadingIndicator = false,
-}) {
-  return ProviderScope(
-    overrides: [
-      imageCacheServiceProvider.overrideWithValue(cacheService),
-      if (dimensionProbe != null)
-        encodedImageDimensionProbeProvider.overrideWithValue(dimensionProbe),
-    ],
-    child: LocalizedTestApp(
-      home: Center(
-        child: SizedBox.square(
-          dimension: 160,
-          child: CachedLibraryImage(
-            request: _request(cacheKey),
-            preferredLocalPath: preferredLocalPath,
-            localFileFallbackPredicate: predicate,
-            localFileFallback: fallback,
-            fit: BoxFit.cover,
-            placeholder: const SizedBox(key: Key('placeholder')),
-            errorPlaceholder: errorPlaceholder,
-            remoteDisplayPolicy: CachedImageRemoteDisplayPolicy.afterCacheWrite,
-            onLocalPathResolved: onLocalPathResolved,
-            onImageResolved: onImageResolved,
-            onImageFailed: onImageFailed,
-            showDelayedLoadingIndicator: showDelayedLoadingIndicator,
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-Widget _loadingHarness(
-  ImageCacheService cacheService, {
-  String cacheKey = 'thread-image',
-  bool showDelayedLoadingIndicator = true,
-  ImageProvider? imageProvider,
-  ImageProvider? remoteImageProvider,
-}) {
-  return ProviderScope(
-    overrides: [imageCacheServiceProvider.overrideWithValue(cacheService)],
-    child: LocalizedTestApp(
-      home: Center(
-        child: SizedBox(
-          width: 240,
-          height: 240,
-          child: CachedLibraryImage(
-            request: _request(cacheKey),
-            fit: BoxFit.contain,
-            placeholder: const SizedBox(key: Key('placeholder')),
-            errorPlaceholder: const SizedBox(key: Key('error-placeholder')),
-            imageProviderOverride: imageProvider,
-            showDelayedLoadingIndicator: showDelayedLoadingIndicator,
-            remoteImageProviderOverride: remoteImageProvider,
-          ),
-        ),
-      ),
-    ),
-  );
   testWidgets(
     'afterCacheWriteThenRemote shows the remote image when the cache write fails',
     (tester) async {
@@ -1429,6 +1344,91 @@ Widget _loadingHarness(
     // bytes that just failed.
     expect(cacheService.getCachedCount('comic/page'), greaterThanOrEqualTo(1));
   });
+}
+
+ImageCacheRequest _request(String cacheKey) {
+  return ImageCacheRequest(
+    cacheKey: cacheKey,
+    sourceUrl: 'https://bbs.yamibo.com/data/attachment/forum/$cacheKey.jpg',
+    ownerType: ImageCacheOwnerType.thread,
+    ownerId: '100',
+    role: ImageCacheRole.threadInline,
+  );
+}
+
+Finder get _loadingIndicator =>
+    find.byKey(const Key('cached-library-image-loading-indicator'));
+
+Widget _localFallbackHarness(
+  ImageCacheService cacheService, {
+  String cacheKey = 'thread-image',
+  String? preferredLocalPath,
+  Future<bool> Function(String)? predicate,
+  Widget? fallback = const SizedBox(key: Key('local-file-fallback')),
+  Widget? errorPlaceholder = const SizedBox(key: Key('error-placeholder')),
+  EncodedImageDimensionProbe? dimensionProbe,
+  ValueChanged<String>? onLocalPathResolved,
+  ValueChanged<Size>? onImageResolved,
+  VoidCallback? onImageFailed,
+  bool showDelayedLoadingIndicator = false,
+}) {
+  return ProviderScope(
+    overrides: [
+      imageCacheServiceProvider.overrideWithValue(cacheService),
+      if (dimensionProbe != null)
+        encodedImageDimensionProbeProvider.overrideWithValue(dimensionProbe),
+    ],
+    child: LocalizedTestApp(
+      home: Center(
+        child: SizedBox.square(
+          dimension: 160,
+          child: CachedLibraryImage(
+            request: _request(cacheKey),
+            preferredLocalPath: preferredLocalPath,
+            localFileFallbackPredicate: predicate,
+            localFileFallback: fallback,
+            fit: BoxFit.cover,
+            placeholder: const SizedBox(key: Key('placeholder')),
+            errorPlaceholder: errorPlaceholder,
+            remoteDisplayPolicy: CachedImageRemoteDisplayPolicy.afterCacheWrite,
+            onLocalPathResolved: onLocalPathResolved,
+            onImageResolved: onImageResolved,
+            onImageFailed: onImageFailed,
+            showDelayedLoadingIndicator: showDelayedLoadingIndicator,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _loadingHarness(
+  ImageCacheService cacheService, {
+  String cacheKey = 'thread-image',
+  bool showDelayedLoadingIndicator = true,
+  ImageProvider? imageProvider,
+  ImageProvider? remoteImageProvider,
+}) {
+  return ProviderScope(
+    overrides: [imageCacheServiceProvider.overrideWithValue(cacheService)],
+    child: LocalizedTestApp(
+      home: Center(
+        child: SizedBox(
+          width: 240,
+          height: 240,
+          child: CachedLibraryImage(
+            request: _request(cacheKey),
+            fit: BoxFit.contain,
+            placeholder: const SizedBox(key: Key('placeholder')),
+            errorPlaceholder: const SizedBox(key: Key('error-placeholder')),
+            imageProviderOverride: imageProvider,
+            showDelayedLoadingIndicator: showDelayedLoadingIndicator,
+            remoteImageProviderOverride: remoteImageProvider,
+          ),
+        ),
+      ),
+    ),
+  );
 
 }
 

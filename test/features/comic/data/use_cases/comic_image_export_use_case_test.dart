@@ -297,6 +297,17 @@ class _FakeImageCacheService implements ImageCacheService {
 
   @override
   Future<void> clearUnprotected() async {}
+
+  @override
+  Future<int> deleteByOwner({
+    required ImageCacheOwnerType ownerType,
+    required String ownerId,
+  }) async => 0;
+
+  @override
+  Future<int> clearUnprotectedByRoles({
+    required List<ImageCacheRole> roles,
+  }) async => 0;
 }
 
 class _FakeComicRepository implements ComicRepository {

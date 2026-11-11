@@ -80,6 +80,11 @@ class CachedLibraryImage extends ConsumerStatefulWidget {
   final VoidCallback? onImageFailed;
   final ValueChanged<LibraryImageFrameSource>? onFirstFrameRendered;
   final ValueChanged<String>? onLocalPathResolved;
+
+  /// Reports a local path whose bytes could not be decoded and has been
+  /// evicted. Session stores that promoted the same path must drop it so the
+  /// widget is not handed the corrupt file again on the next rebuild.
+  final ValueChanged<String>? onLocalPathInvalidated;
   @visibleForTesting
   final ImageProvider? imageProviderOverride;
   @visibleForTesting
