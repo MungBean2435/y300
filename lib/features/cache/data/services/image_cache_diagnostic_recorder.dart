@@ -52,6 +52,7 @@ final class ImageCacheFailureDiagnostic {
     required this.exceptionType,
     required this.elapsedMilliseconds,
     this.bytesReceived,
+    this.statusCode,
   });
 
   final ImageCacheDiagnosticStage stage;
@@ -63,6 +64,9 @@ final class ImageCacheFailureDiagnostic {
   final String exceptionType;
   final int elapsedMilliseconds;
   final int? bytesReceived;
+
+  /// HTTP status when the failure came from a resource response.
+  final int? statusCode;
 
   static String fingerprint(String cacheKey) {
     final digest = sha256.convert(utf8.encode(cacheKey.trim())).toString();
@@ -202,10 +206,16 @@ ImageCacheFailureDiagnostic buildImageCacheFailureDiagnostic({
     exceptionType: error.runtimeType.toString(),
     elapsedMilliseconds: elapsed.inMilliseconds,
     bytesReceived: classification.bytesReceived,
+    statusCode: classification.statusCode,
   );
 }
 
-({ImageCacheDiagnosticFailureKind kind, String reasonCode, int? bytesReceived})
+({
+  ImageCacheDiagnosticFailureKind kind,
+  String reasonCode,
+  int? bytesReceived,
+  int? statusCode,
+})
 _classifyFailure(ImageCacheDiagnosticStage stage, Object error) {
   if (error is ForumResourceFileServiceException) {
     return _resourceClassification(error.failure);
@@ -216,6 +226,7 @@ _classifyFailure(ImageCacheDiagnosticStage stage, Object error) {
       kind: value.kind,
       reasonCode: value.reasonCode,
       bytesReceived: error.bytesReceived,
+      statusCode: value.statusCode,
     );
   }
   if (error is TimeoutException) {
@@ -223,6 +234,7 @@ _classifyFailure(ImageCacheDiagnosticStage stage, Object error) {
       kind: ImageCacheDiagnosticFailureKind.timeout,
       reasonCode: 'cache_timeout',
       bytesReceived: null,
+      statusCode: null,
     );
   }
   if (error is io.FileSystemException) {
@@ -230,6 +242,7 @@ _classifyFailure(ImageCacheDiagnosticStage stage, Object error) {
       kind: ImageCacheDiagnosticFailureKind.fileSystem,
       reasonCode: 'cache_file_system',
       bytesReceived: null,
+      statusCode: null,
     );
   }
   return switch (stage) {
@@ -237,33 +250,39 @@ _classifyFailure(ImageCacheDiagnosticStage stage, Object error) {
       kind: ImageCacheDiagnosticFailureKind.invalidRequest,
       reasonCode: 'cache_request_invalid',
       bytesReceived: null,
+      statusCode: null,
     ),
     ImageCacheDiagnosticStage.indexRead ||
     ImageCacheDiagnosticStage.indexWrite => (
       kind: ImageCacheDiagnosticFailureKind.indexStore,
       reasonCode: 'cache_index_failure',
       bytesReceived: null,
+      statusCode: null,
     ),
     ImageCacheDiagnosticStage.managerInitialization ||
     ImageCacheDiagnosticStage.cacheLookup => (
       kind: ImageCacheDiagnosticFailureKind.cacheManager,
       reasonCode: 'cache_manager_failure',
       bytesReceived: null,
+      statusCode: null,
     ),
     ImageCacheDiagnosticStage.fileInspection => (
       kind: ImageCacheDiagnosticFailureKind.fileSystem,
       reasonCode: 'cache_file_inspection_failure',
       bytesReceived: null,
+      statusCode: null,
     ),
     ImageCacheDiagnosticStage.decode => (
       kind: ImageCacheDiagnosticFailureKind.decode,
       reasonCode: 'cache_image_decode_failure',
       bytesReceived: null,
+      statusCode: null,
     ),
     ImageCacheDiagnosticStage.download => (
       kind: ImageCacheDiagnosticFailureKind.unknown,
       reasonCode: 'cache_download_failure',
       bytesReceived: null,
+      statusCode: null,
     ),
   };
 }
@@ -292,5 +311,10 @@ _resourceClassification(ForumResourceFailure failure) {
       ImageCacheDiagnosticFailureKind.cancelled,
     ForumResourceFailureKind.unknown => ImageCacheDiagnosticFailureKind.unknown,
   };
-  return (kind: kind, reasonCode: failure.code, bytesReceived: null);
+  return (
+    kind: kind,
+    reasonCode: failure.code,
+    bytesReceived: null,
+    statusCode: failure.statusCode,
+  );
 }

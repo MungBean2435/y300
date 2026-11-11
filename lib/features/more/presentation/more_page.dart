@@ -16,6 +16,7 @@ import 'package:y300/features/messages/presentation/widgets/message_attention_ic
 import 'package:y300/features/more/presentation/about_page.dart';
 import 'package:y300/features/more/presentation/appearance_settings_sheet.dart';
 import 'package:y300/features/more/presentation/data_storage_sheet.dart';
+import 'package:y300/features/more/presentation/app_log_page.dart';
 import 'package:y300/features/more/presentation/more_debug_tools.dart';
 import 'package:y300/features/more/presentation/more_account_action.dart';
 import 'package:y300/features/more/presentation/more_account_header.dart';
@@ -198,6 +199,17 @@ class _MorePageState extends ConsumerState<MorePage> {
                   MaterialPageRoute<void>(
                     builder: (_) => const ComicDownloadQueuePage(),
                   ),
+                );
+              },
+            ),
+            ListTile(
+              key: const Key('more-diagnostic-log-entry'),
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: Text(l10n.moreDiagnosticLog),
+              subtitle: Text(l10n.moreDiagnosticLogHint),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const AppLogPage()),
                 );
               },
             ),
@@ -469,9 +481,8 @@ class _MorePageState extends ConsumerState<MorePage> {
       final message = l10n.moreLogoutFailed(
         LocalizedErrorSummary.resolve(l10n, failure),
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _confirmingLogout = false);
     }

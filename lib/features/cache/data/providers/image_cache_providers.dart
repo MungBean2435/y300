@@ -17,6 +17,8 @@ import 'package:y300/features/cache/data/services/document_cache_service.dart';
 import 'package:y300/features/cache/data/providers/image_cache_directory_provider.dart';
 import 'package:y300/features/cache/data/services/image_cache_manager_factory.dart';
 import 'package:y300/features/cache/data/services/image_cache_file_access.dart';
+import 'package:y300/core/diagnostics/diagnostics_providers.dart';
+import 'package:y300/features/cache/data/services/app_log_image_cache_diagnostic_recorder.dart';
 import 'package:y300/features/cache/data/services/image_cache_diagnostic_recorder.dart';
 import 'package:y300/features/cache/data/services/image_cache_access_recorder.dart';
 import 'package:y300/features/cache/data/services/y300_forum_resource_file_service.dart';
@@ -76,11 +78,34 @@ final imageCacheRepositoryProvider = Provider<ImageCacheRepository>((ref) {
 
 final imageCacheDiagnosticRecorderProvider =
     Provider<ImageCacheDiagnosticRecorder>((ref) {
+      // 设置里的"诊断日志"要能在正式包查看，因此始终写入应用内环形缓冲；
+      // Debug 构建额外保留原有 logger 输出。
+      final recorder = AppLogImageCacheDiagnosticRecorder(
+        ref.watch(appLogRecorderProvider),
+      );
       if (!kDebugMode) {
-        return const NoopImageCacheDiagnosticRecorder();
+        return recorder;
       }
-      return LoggerImageCacheDiagnosticRecorder(ref.watch(loggerProvider));
+      return _TeeImageCacheDiagnosticRecorder(<ImageCacheDiagnosticRecorder>[
+        recorder,
+        LoggerImageCacheDiagnosticRecorder(ref.watch(loggerProvider)),
+      ]);
     });
+
+/// Debug 构建同时写应用内日志和 logger，避免丢失原有调试输出。
+final class _TeeImageCacheDiagnosticRecorder
+    implements ImageCacheDiagnosticRecorder {
+  const _TeeImageCacheDiagnosticRecorder(this._recorders);
+
+  final List<ImageCacheDiagnosticRecorder> _recorders;
+
+  @override
+  void recordFailure(ImageCacheFailureDiagnostic event) {
+    for (final recorder in _recorders) {
+      recorder.recordFailure(event);
+    }
+  }
+}
 
 final encodedImageDimensionProbeProvider = Provider<EncodedImageDimensionProbe>(
   (ref) {

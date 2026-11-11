@@ -1,11 +1,14 @@
 import 'dart:io' as io;
 
+import 'package:y300/core/diagnostics/app_log_models.dart';
+import 'package:y300/core/diagnostics/app_log_recorder.dart';
 import 'package:y300/features/cache/domain/models/image_cache_keys.dart';
 import 'package:y300/features/cache/domain/models/image_cache_models.dart';
 import 'package:y300/features/cache/domain/services/image_cache_service.dart';
 import 'package:y300/features/comic/domain/models/comic_detail_models.dart';
 import 'package:y300/features/comic/domain/repositories/comic_repository.dart';
 import 'package:y300/features/comic/domain/services/comic_image_export_destination.dart';
+import 'package:y300/features/comic/domain/services/comic_image_export_link_refresher.dart';
 import 'package:y300/features/comic/domain/services/comic_image_export_use_case.dart';
 import 'package:y300/features/comic/domain/services/comic_image_export_writer.dart';
 import 'package:y300/features/reader_shared/domain/export/reader_image_export.dart'
@@ -25,10 +28,14 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
     required ImageCacheService imageCacheService,
     required List<ComicImageExportWriter> writers,
     String? imageReferer,
+    AppLogRecorder? log,
+    ComicImageExportLinkRefresher? linkRefresher,
   }) : _comicRepository = comicRepository,
        _imageCacheService = imageCacheService,
        _writers = List<ComicImageExportWriter>.unmodifiable(writers),
-       _imageReferer = imageReferer;
+       _imageReferer = imageReferer,
+       _log = log,
+       _linkRefresher = linkRefresher;
 
   static const String _albumRoot = 'Y300';
 
@@ -36,6 +43,8 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
   final ImageCacheService _imageCacheService;
   final List<ComicImageExportWriter> _writers;
   final String? _imageReferer;
+  final AppLogRecorder? _log;
+  final ComicImageExportLinkRefresher? _linkRefresher;
   final Map<String, Future<ComicImageExportResult>> _inFlight =
       <String, Future<ComicImageExportResult>>{};
 
@@ -157,11 +166,27 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
     var cancelled = false;
     String? displayLocation;
 
-    for (final chapter in chapterImages) {
+    _log?.record(
+      level: AppLogLevel.info,
+      scope: 'export',
+      code: 'start',
+      detail:
+          'comic=$comicId scope=${scope.name} target=${target.location.name} '
+          'chapters=${chapterImages.length} pages=$total',
+    );
+
+    for (
+      var chapterIndex = 0;
+      chapterIndex < chapterImages.length;
+      chapterIndex++
+    ) {
+      var chapter = chapterImages[chapterIndex];
       final chapterFolder = _relativeFolder(
         comicTitle: comicTitle,
         chapterTitle: chapter.title,
       );
+      final failedIndexes = <int>[];
+      final failedReasons = <int, ComicImageExportWriteFailure>{};
       for (final image in chapter.images) {
         if (cancellationToken?.isCancellationRequested ?? false) {
           cancelled = true;
@@ -186,6 +211,8 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
             skipped += 1;
           case _ExportFailed(:final reason):
             failed += 1;
+            failedIndexes.add(image.imageIndex);
+            failedReasons[image.imageIndex] = reason;
             failures.update(reason, (count) => count + 1, ifAbsent: () => 1);
         }
         observer?.onChange(
@@ -201,6 +228,59 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
       if (cancelled) {
         break;
       }
+      // 一次性有界重试：附件链接过期（404/403）时重新解析原帖拿新地址。
+      // 页数变化说明章节结构变了，交给用户显式刷新，导出不静默重排。
+      if (failedIndexes.isNotEmpty) {
+        final refreshed = await _refreshChapterLinks(
+          comicId: comicId,
+          chapter: chapter,
+        );
+        if (refreshed != null) {
+          chapter = refreshed;
+          chapterImages[chapterIndex] = refreshed;
+          for (final failedIndex in failedIndexes) {
+            if (cancellationToken?.isCancellationRequested ?? false) {
+              cancelled = true;
+              break;
+            }
+            final image = _imageAtIndex(refreshed, failedIndex);
+            if (image == null) {
+              continue;
+            }
+            final retry = await _exportImage(
+              comicId: comicId,
+              chapter: refreshed,
+              chapterFolder: chapterFolder,
+              image: image,
+              target: target,
+              writer: writer,
+            );
+            if (retry is! _ExportSuccess) {
+              continue;
+            }
+            final previousReason = failedReasons.remove(failedIndex);
+            if (previousReason != null) {
+              final remaining = (failures[previousReason] ?? 1) - 1;
+              if (remaining <= 0) {
+                failures.remove(previousReason);
+              } else {
+                failures[previousReason] = remaining;
+              }
+            }
+            failed -= 1;
+            exported += 1;
+            if (retry.location != null && retry.location!.isNotEmpty) {
+              displayLocation = retry.location;
+            }
+            _log?.record(
+              level: AppLogLevel.info,
+              scope: 'export',
+              code: 'retry_ok',
+              detail: 'episode=${chapter.episodeId} page=$failedIndex',
+            );
+          }
+        }
+      }
     }
 
     final resolvedLocation =
@@ -209,6 +289,14 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
           _albumRoot,
           _safeSegment(comicTitle),
         ]);
+    _log?.record(
+      level: failed > 0 ? AppLogLevel.warning : AppLogLevel.info,
+      scope: 'export',
+      code: 'done',
+      detail:
+          'exported=$exported failed=$failed skipped=$skipped '
+          'cancelled=$cancelled target=${target.location.name}',
+    );
     return ComicImageExportResult(
       exportedCount: exported,
       failedCount: failed,
@@ -218,6 +306,52 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
       displayLocation: resolvedLocation,
       failures: Map<ComicImageExportWriteFailure, int>.unmodifiable(failures),
     );
+  }
+
+  Future<_ExportChapter?> _refreshChapterLinks({
+    required String comicId,
+    required _ExportChapter chapter,
+  }) async {
+    final refresher = _linkRefresher;
+    if (refresher == null) {
+      return null;
+    }
+    final refreshed = await refresher.refresh(
+      comicId: comicId,
+      episodeId: chapter.episodeId,
+      sourceTid: _sourceTidOf(chapter.episodeId),
+    );
+    if (!refreshed) {
+      return null;
+    }
+    final images = await _comicRepository.getEpisodeImages(
+      episodeId: chapter.episodeId,
+    );
+    if (images.length != chapter.images.length) {
+      return null;
+    }
+    final ordered = List<ComicEpisodeImageItem>.of(images)
+      ..sort((left, right) => left.imageIndex.compareTo(right.imageIndex));
+    _log?.record(
+      level: AppLogLevel.info,
+      scope: 'export',
+      code: 'link_refreshed',
+      detail: 'episode=${chapter.episodeId} pages=${ordered.length}',
+    );
+    return _ExportChapter(
+      episodeId: chapter.episodeId,
+      title: chapter.title,
+      images: ordered,
+    );
+  }
+
+  ComicEpisodeImageItem? _imageAtIndex(_ExportChapter chapter, int index) {
+    for (final image in chapter.images) {
+      if (image.imageIndex == index) {
+        return image;
+      }
+    }
+    return null;
   }
 
   Future<List<ComicEpisodeItem>> _episodesFor({
@@ -281,6 +415,14 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
     );
     final localPath = cached.localPath?.trim();
     if (!cached.success || localPath == null || localPath.isEmpty) {
+      _log?.record(
+        level: AppLogLevel.warning,
+        scope: 'export',
+        code: 'cache_unavailable',
+        detail:
+            'episode=${chapter.episodeId} page=${image.imageIndex} '
+            'key=$cacheKey',
+      );
       return const _ExportImageOutcome.failed(
         ComicImageExportWriteFailure.cacheUnavailable,
       );
@@ -297,6 +439,12 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
       );
     }
     if (format == null) {
+      _log?.record(
+        level: AppLogLevel.warning,
+        scope: 'export',
+        code: 'unsupported_format',
+        detail: 'episode=${chapter.episodeId} page=${image.imageIndex}',
+      );
       return const _ExportImageOutcome.failed(
         ComicImageExportWriteFailure.unsupportedFormat,
       );
@@ -313,9 +461,16 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
       target: target,
     );
     if (!result.success) {
-      return _ExportImageOutcome.failed(
-        result.failure ?? ComicImageExportWriteFailure.unknown,
+      final reason = result.failure ?? ComicImageExportWriteFailure.unknown;
+      _log?.record(
+        level: AppLogLevel.error,
+        scope: 'export',
+        code: 'write_failed',
+        detail:
+            'episode=${chapter.episodeId} page=${image.imageIndex} '
+            'reason=${reason.name} target=${target.location.name}',
       );
+      return _ExportImageOutcome.failed(reason);
     }
     return _ExportImageOutcome.success(result.displayLocation);
   }

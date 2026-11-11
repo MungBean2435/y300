@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:y300/core/network/yamibo_forum_transport_providers.dart';
+import 'package:y300/core/diagnostics/diagnostics_providers.dart';
 import 'package:y300/core/preferences/preferences_providers.dart';
 import 'package:y300/features/cache/data/providers/image_cache_providers.dart';
 import 'package:y300/features/comic/data/providers/comic_providers.dart';
+import 'package:y300/features/comic/data/providers/comic_reader_service_providers.dart';
+import 'package:y300/features/comic/data/services/reader_service_comic_image_export_link_refresher.dart';
 import 'package:y300/features/comic/data/services/comic_image_export_destination_store.dart';
 import 'package:y300/features/comic/data/services/directory_comic_image_export_writer.dart';
 import 'package:y300/features/comic/data/services/gallery_comic_image_export_writer.dart';
@@ -32,5 +35,10 @@ final comicImageExportUseCaseProvider = Provider<ComicImageExportUseCase>((
       const DirectoryComicImageExportWriter(),
     ],
     imageReferer: ref.watch(forumImageRefererProvider),
+    log: ref.watch(appLogRecorderProvider),
+    linkRefresher: ReaderServiceComicImageExportLinkRefresher(
+      comicRepository: ref.watch(comicRepositoryProvider),
+      readerService: ref.watch(comicReaderServiceProvider.future),
+    ),
   );
 });

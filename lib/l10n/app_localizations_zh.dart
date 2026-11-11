@@ -5647,6 +5647,27 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 }
 
+@override
+String get moreDiagnosticLog => '诊断日志';
+
+@override
+String get moreDiagnosticLogHint => '查看本次运行的图片/导出日志（仅本机，退出后清空）';
+
+@override
+String get diagnosticLogEmpty => '暂无日志';
+
+@override
+String get diagnosticLogCopy => '复制';
+
+@override
+String get diagnosticLogCopied => '日志已复制';
+
+@override
+String get diagnosticLogClear => '清空';
+
+@override
+String get diagnosticLogCleared => '日志已清空';
+
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
 class AppLocalizationsZhTw extends AppLocalizationsZh {
   AppLocalizationsZhTw() : super('zh_TW');
@@ -11289,4 +11310,25 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String comicExportPartialResult(int count, int failed) {
     return '已匯出 $count 張，$failed 張失敗';
   }
+
+  @override
+  String get moreDiagnosticLog => '診斷日誌';
+
+  @override
+  String get moreDiagnosticLogHint => '查看本次執行的圖片/匯出日誌（僅本機，結束後清空）';
+
+  @override
+  String get diagnosticLogEmpty => '尚無日誌';
+
+  @override
+  String get diagnosticLogCopy => '複製';
+
+  @override
+  String get diagnosticLogCopied => '日誌已複製';
+
+  @override
+  String get diagnosticLogClear => '清除';
+
+  @override
+  String get diagnosticLogCleared => '日誌已清除';
 }

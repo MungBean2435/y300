@@ -9453,6 +9453,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已导出 {count} 张，{failed} 张失败'**
   String comicExportPartialResult(int count, int failed);
+
+  /// No description provided for @moreDiagnosticLog.
+  ///
+  /// In zh, this message translates to:
+  /// **'诊断日志'**
+  String get moreDiagnosticLog;
+
+  /// No description provided for @moreDiagnosticLogHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看本次运行的图片/导出日志（仅本机，退出后清空）'**
+  String get moreDiagnosticLogHint;
+
+  /// No description provided for @diagnosticLogEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无日志'**
+  String get diagnosticLogEmpty;
+
+  /// No description provided for @diagnosticLogCopy.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制'**
+  String get diagnosticLogCopy;
+
+  /// No description provided for @diagnosticLogCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'日志已复制'**
+  String get diagnosticLogCopied;
+
+  /// No description provided for @diagnosticLogClear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空'**
+  String get diagnosticLogClear;
+
+  /// No description provided for @diagnosticLogCleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'日志已清空'**
+  String get diagnosticLogCleared;
 }
 
 class _AppLocalizationsDelegate

@@ -2251,5 +2251,12 @@
   "comicExportSavedTo": "已导出 {count} 张到 {location}",
   "@comicExportSavedTo": {"placeholders": {"count": {"type": "int"}, "location": {"type": "String"}}},
   "comicExportPartialResult": "已导出 {count} 张，{failed} 张失败",
-  "@comicExportPartialResult": {"placeholders": {"count": {"type": "int"}, "failed": {"type": "int"}}}
+  "@comicExportPartialResult": {"placeholders": {"count": {"type": "int"}, "failed": {"type": "int"}}},
+  "moreDiagnosticLog": "诊断日志",
+  "moreDiagnosticLogHint": "查看本次运行的图片/导出日志（仅本机，退出后清空）",
+  "diagnosticLogEmpty": "暂无日志",
+  "diagnosticLogCopy": "复制",
+  "diagnosticLogCopied": "日志已复制",
+  "diagnosticLogClear": "清空",
+  "diagnosticLogCleared": "日志已清空"
 }

@@ -1871,5 +1871,12 @@
   "comicExportSavedTo": "已匯出 {count} 張到 {location}",
   "@comicExportSavedTo": {"placeholders": {"count": {"type": "int"}, "location": {"type": "String"}}},
   "comicExportPartialResult": "已匯出 {count} 張，{failed} 張失敗",
-  "@comicExportPartialResult": {"placeholders": {"count": {"type": "int"}, "failed": {"type": "int"}}}
+  "@comicExportPartialResult": {"placeholders": {"count": {"type": "int"}, "failed": {"type": "int"}}},
+  "moreDiagnosticLog": "診斷日誌",
+  "moreDiagnosticLogHint": "查看本次執行的圖片/匯出日誌（僅本機，結束後清空）",
+  "diagnosticLogEmpty": "尚無日誌",
+  "diagnosticLogCopy": "複製",
+  "diagnosticLogCopied": "日誌已複製",
+  "diagnosticLogClear": "清除",
+  "diagnosticLogCleared": "日誌已清除"
 }
