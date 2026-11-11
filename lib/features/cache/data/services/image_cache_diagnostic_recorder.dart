@@ -287,7 +287,12 @@ _classifyFailure(ImageCacheDiagnosticStage stage, Object error) {
   };
 }
 
-({ImageCacheDiagnosticFailureKind kind, String reasonCode, int? bytesReceived})
+({
+  ImageCacheDiagnosticFailureKind kind,
+  String reasonCode,
+  int? bytesReceived,
+  int? statusCode,
+})
 _resourceClassification(ForumResourceFailure failure) {
   final kind = switch (failure.kind) {
     ForumResourceFailureKind.invalidReference =>
