@@ -91,9 +91,8 @@ class ComicShelfAdapter
   final bool _supportsBulkDownload;
   final bool _supportsUnfavorite;
 
-  // Bulk caching remains callable for compatibility and recovery, while the
-  // current shelf presentation deliberately omits its selection entry.
-  bool get _showsBulkDownloadSelectionAction => false;
+  // 书架多选提供"缓存"动作：整部作品直接入队，进度与失败由持久队列负责。
+  bool get _showsBulkDownloadSelectionAction => true;
 
   @override
   LibraryModuleKey get moduleKey => LibraryModuleKey.comic;

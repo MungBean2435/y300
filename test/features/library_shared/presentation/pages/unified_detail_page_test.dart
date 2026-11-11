@@ -1215,12 +1215,47 @@ void main() {
     );
     expect(
       find.byKey(const Key('unified-detail-appbar-download')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.byKey(const Key('unified-detail-appbar-filter')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('UnifiedDetailPage one-tap cache enqueues the whole work', (
+    tester,
+  ) async {
+    final adapter = _FakeDetailAdapter(includeSecondChapter: true);
+    var queueOpened = false;
+
+    await tester.pumpWidget(
+      LocalizedTestApp(
+        home: UnifiedDetailPage(
+          adapter: adapter,
+          workId: 'work-1',
+          onOpenReader: (context, target) async {},
+          onOpenThread: (context, target) async {},
+          onOpenDownloadQueue: () => queueOpened = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('unified-detail-appbar-download')));
+    await tester.pump();
+
+    expect(adapter.downloadAllCalls, 1);
+    expect(
+      find.text(AppLocalizationsZh().libraryDetailDownloadQueued),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.text(AppLocalizationsZh().libraryDetailViewDownloadQueue),
+    );
+    await tester.pump();
+    expect(queueOpened, isTrue);
   });
 
   testWidgets(
@@ -2241,6 +2276,8 @@ class _FakeDetailAdapter
         DetailChapterReadStateAdapter,
         DetailWorkReadingResetAdapter,
         DetailChapterDownloadAdapter {
+  int downloadAllCalls = 0;
+  int downloadUnreadCalls = 0;
   _FakeDetailAdapter({
     this.module = LibraryModuleKey.novel,
     this.coverLocalPath,
@@ -2311,10 +2348,14 @@ class _FakeDetailAdapter
   }
 
   @override
-  Future<void> downloadAll({required String workId}) async {}
+  Future<void> downloadAll({required String workId}) async {
+    downloadAllCalls += 1;
+  }
 
   @override
-  Future<void> downloadUnread({required String workId}) async {}
+  Future<void> downloadUnread({required String workId}) async {
+    downloadUnreadCalls += 1;
+  }
 
   @override
   Future<ReaderRouteTarget?> getReaderRouteTarget({

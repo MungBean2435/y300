@@ -1054,6 +1054,18 @@ void main() {
     expect(refreshAction, findsOneWidget);
     expect(markReadAction, findsOneWidget);
     expect(
+      find.byKey(
+        const Key('shared-reader-action-cache-current-episode'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const Key('shared-reader-action-export-current-episode'),
+      ),
+      findsOneWidget,
+    );
+    expect(
       tester.getTopLeft(refreshAction).dy,
       lessThan(tester.getTopLeft(markReadAction).dy),
     );

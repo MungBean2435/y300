@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('bulk cache entries stay hidden while their call paths remain', () {
+  test('bulk cache entries stay exposed with their call paths', () {
     final detailPage = File(
       'lib/features/library_shared/presentation/pages/unified_detail_page.dart',
     ).readAsStringSync();
@@ -11,19 +11,22 @@ void main() {
       'lib/features/comic/presentation/adapters/comic_shelf_adapter.dart',
     ).readAsStringSync();
 
-    expect(detailPage, contains('_showsBulkDownloadActions => false'));
+    // 详情页把整部缓存作为单按钮主入口，未读缓存收进 more 菜单。
+    expect(detailPage, contains('_showsBulkDownloadActions => true'));
     expect(
       detailPage,
       contains('_supportsChapterDownloads && _showsBulkDownloadActions'),
     );
-    expect(detailPage, contains('_downloadMenuItems(BuildContext context)'));
-    expect(detailPage, contains('_handleDownloadMenuAction(String value)'));
-    expect(detailPage, contains('downloadAdapter.downloadUnread'));
-    expect(detailPage, contains('downloadAdapter.downloadAll'));
+    expect(detailPage, contains("'unified-detail-appbar-download'"));
+    expect(detailPage, contains('Future<void> _cacheAllChapters()'));
+    expect(detailPage, contains('Future<void> _cacheUnreadChapters()'));
+    expect(detailPage, contains("'unified-detail-cache-unread'"));
+    expect(detailPage, contains('adapter.downloadUnread(workId: widget.workId)'));
+    expect(detailPage, contains('adapter.downloadAll(workId: widget.workId)'));
 
     expect(
       shelfAdapter,
-      contains('_showsBulkDownloadSelectionAction => false'),
+      contains('_showsBulkDownloadSelectionAction => true'),
     );
     expect(
       shelfAdapter,

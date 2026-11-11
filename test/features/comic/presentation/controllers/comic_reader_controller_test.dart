@@ -1280,6 +1280,126 @@ void main() {
   );
 
   test(
+    'manual retry rebuilds the chapter when the failed page link was re-issued',
+    () async {
+      final repository = _ReaderRepoForControllerTest();
+      final service = _ReaderServiceSpy();
+      final writer = _ReadingStateWriterSpy(repository);
+      final container = ProviderContainer(
+        overrides: [
+          comicRepositoryProvider.overrideWithValue(repository),
+          comicReadingStateWriterProvider.overrideWithValue(writer),
+          comicReaderServiceProvider.overrideWith((ref) async => service),
+          comicDownloadServiceProvider.overrideWithValue(
+            _NoopComicDownloadService(),
+          ),
+          imageCacheServiceProvider.overrideWithValue(_FakeImageCacheService()),
+        ],
+      );
+      addTearDown(container.dispose);
+      const args = ComicReaderArgs(
+        comicId: 'yamibo:100',
+        episodeId: 'yamibo:100:101',
+      );
+      final subscription = container.listen(
+        comicReaderControllerProvider(args),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await container.read(comicReaderControllerProvider(args).future);
+      final controller = container.read(
+        comicReaderControllerProvider(args).notifier,
+      );
+      service.fetchCompleter = Completer<ComicEpisodeImagesFetchResult>();
+
+      final manualRetry = controller.prepareImageRetry(
+        expectedEpisodeId: 'yamibo:100:101',
+        imageIndex: 4,
+        imageUrl: 'https://img.test/101-5.jpg',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(service.fetchEpisodeImagesCalls, <String>['101']);
+      service.fetchCompleter!.complete(
+        const ComicEpisodeImagesFetched(<String>[
+          'https://img.test/101-1.jpg',
+          'https://img.test/101-2.jpg',
+          'https://img.test/101-3.jpg',
+          'https://img.test/101-4.jpg',
+          'https://img.test/101-5.jpg?reissued=1',
+        ]),
+      );
+      await manualRetry;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repository.replaceEpisodeImagesCallCount, 1);
+      final state = container
+          .read(comicReaderControllerProvider(args))
+          .requireValue;
+      expect(state.imageSessionRevision, 1);
+      expect(state.currentImageIndex, 0);
+      expect(state.images[4].imageUrl, 'https://img.test/101-5.jpg?reissued=1');
+    },
+  );
+
+  test(
+    'automatic probe never rewrites the chapter image directory',
+    () async {
+      final repository = _ReaderRepoForControllerTest();
+      final service = _ReaderServiceSpy();
+      final writer = _ReadingStateWriterSpy(repository);
+      final container = ProviderContainer(
+        overrides: [
+          comicRepositoryProvider.overrideWithValue(repository),
+          comicReadingStateWriterProvider.overrideWithValue(writer),
+          comicReaderServiceProvider.overrideWith((ref) async => service),
+          comicDownloadServiceProvider.overrideWithValue(
+            _NoopComicDownloadService(),
+          ),
+          imageCacheServiceProvider.overrideWithValue(_FakeImageCacheService()),
+        ],
+      );
+      addTearDown(container.dispose);
+      const args = ComicReaderArgs(
+        comicId: 'yamibo:100',
+        episodeId: 'yamibo:100:101',
+      );
+      final subscription = container.listen(
+        comicReaderControllerProvider(args),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await container.read(comicReaderControllerProvider(args).future);
+      final controller = container.read(
+        comicReaderControllerProvider(args).notifier,
+      );
+      service.fetchCompleter = Completer<ComicEpisodeImagesFetchResult>();
+
+      final failure = controller.onImageDisplayFailed(
+        imageIndex: 4,
+        imageUrl: 'https://img.test/101-5.jpg',
+      );
+      await Future<void>.delayed(Duration.zero);
+      service.fetchCompleter!.complete(
+        const ComicEpisodeImagesFetched(<String>[
+          'https://img.test/101-1.jpg',
+          'https://img.test/101-2.jpg',
+          'https://img.test/101-3.jpg',
+          'https://img.test/101-4.jpg',
+          'https://img.test/101-5.jpg?reissued=1',
+        ]),
+      );
+      await failure;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repository.replaceEpisodeImagesCallCount, 0);
+      final state = container
+          .read(comicReaderControllerProvider(args))
+          .requireValue;
+      expect(state.imageSessionRevision, 0);
+    },
+  );
+
+  test(
     'concurrent display failures share one automatic chapter probe',
     () async {
       final repository = _ReaderRepoForControllerTest();

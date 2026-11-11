@@ -84,6 +84,15 @@ class ReaderImageSessionBinding
       localPath: localPath,
     );
   }
+
+  bool invalidateLocalPath(String localPath) {
+    return _store.invalidateLocalPath(
+      readerOwnerId: value.readerOwnerId,
+      itemId: value.itemId,
+      generation: value.generation,
+      localPath: localPath,
+    );
+  }
 }
 
 /// Session-local image preparation state.
@@ -216,6 +225,43 @@ class ReaderImageSessionStore {
           ? ReaderImageSessionStatus.decoded
           : ReaderImageSessionStatus.diskReady,
       clearFailureReason: true,
+    );
+    return true;
+  }
+
+  /// Drops a promoted local path whose bytes failed to decode.
+  ///
+  /// The binding keeps its item identity and generation; only the unusable
+  /// path is cleared so the reader image can re-download through the cache
+  /// service instead of being handed the same corrupt file again.
+  bool invalidateLocalPath({
+    required String readerOwnerId,
+    required String itemId,
+    required int generation,
+    required String localPath,
+  }) {
+    final normalizedPath = _normalize(localPath);
+    if (normalizedPath == null || !_isCurrent(readerOwnerId, generation)) {
+      return false;
+    }
+    final slot = _slots[itemId];
+    if (slot == null) {
+      return false;
+    }
+    final current = slot.notifier.value;
+    if (current.localPath != normalizedPath) {
+      return false;
+    }
+    slot.notifier.value = ReaderImageSessionEntry(
+      readerOwnerId: current.readerOwnerId,
+      itemId: current.itemId,
+      imageIndex: current.imageIndex,
+      sourceUrl: current.sourceUrl,
+      cacheKey: current.cacheKey,
+      generation: current.generation,
+      status: ReaderImageSessionStatus.idle,
+      decoded: false,
+      failureReason: 'decode_failed',
     );
     return true;
   }

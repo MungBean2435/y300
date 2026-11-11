@@ -1,0 +1,84 @@
+name: Build test APK (arm64)
+
+# 只用于测试构建：不加签名 secret，build.gradle.kts 会自动回退 debug 签名，
+# 产物可直接安装（不可用于商店/覆盖官方发布版）。
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/comic-image-reliability-and-bulk-actions
+
+concurrency:
+  group: test-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.7"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          for pkg in \
+            packages/yamibo_forum_client \
+            packages/forum_markup_core \
+            packages/content_title_core \
+            packages/continuous_image_geometry \
+            packages/html_pagination_core; do
+            (cd "$pkg" && dart pub get)
+          done
+          (cd packages/forum_content_renderer && flutter pub get)
+          (cd packages/forum_content_renderer/example && flutter pub get)
+
+      # 分析结果先落盘再上传，避免因为既有 lint 问题挡住出包。
+      - name: Analyze
+        run: flutter analyze > analyze.log 2>&1 || true
+
+      - name: Upload analyze log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analyze-log
+          path: analyze.log
+          if-no-files-found: ignore
+
+      - name: Build arm64 release APK
+        run: |
+          flutter build apk \
+            --release \
+            --target-platform android-arm64 \
+            > build.log 2>&1 || { tail -n 200 build.log; exit 1; }
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: y300-test-arm64-apk
+          path: build/app/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14

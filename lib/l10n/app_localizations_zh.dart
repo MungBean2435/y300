@@ -5575,6 +5575,76 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get threadFavoriteParseQueueFailed => '收藏成功，但未能加入解析队列，可在收藏页手动解析';
+  @override
+  String get comicCacheCurrentEpisode => '缓存本话';
+
+  @override
+  String get comicExportChapter => '导出本话';
+
+  @override
+  String get comicExportWork => '导出全部章节';
+
+  @override
+  String get comicExportChooseLocation => '选择导出位置';
+
+  @override
+  String get comicExportToGallery => '系统相册';
+
+  @override
+  String get comicExportToGalleryHint => '保存到 Pictures/Y300 下的作品/章节相册';
+
+  @override
+  String get comicExportToDirectory => '文件夹';
+
+  @override
+  String get comicExportChangeDirectory => '更改';
+
+  @override
+  String get comicExportPickDirectory => '选择文件夹…';
+
+  @override
+  String get comicExportDestinationHint => '相册按作品/章节建立子相册；文件夹保留相同的作品/章节结构。';
+
+  @override
+  String get comicExportWorkConfirm => '将把这部作品的全部章节图片导出到所选位置，过程中可随时取消。';
+
+  @override
+  String get comicExportCancelling => '正在取消…';
+
+  @override
+  String get comicExportCancelled => '已取消导出';
+
+  @override
+  String get comicExportFailed => '导出失败，请重试';
+
+  @override
+  String get comicExportNothingToExport => '没有可导出的图片';
+
+  @override
+  String get libraryDetailDownloadQueued => '已加入缓存队列';
+
+  @override
+  String get libraryDetailViewDownloadQueue => '查看';
+
+  @override
+  String comicExportProgress(int completed, int total) {
+    return '正在导出 $completed/$total';
+  }
+
+  @override
+  String comicExportPartialFailed(int failed) {
+    return '已失败 $failed 张';
+  }
+
+  @override
+  String comicExportSavedTo(int count, String location) {
+    return '已导出 $count 张到 $location';
+  }
+
+  @override
+  String comicExportPartialResult(int count, int failed) {
+    return '已导出 $count 张，$failed 张失败';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -11149,4 +11219,74 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get threadFavoriteParseQueueFailed => '收藏成功，但未能加入解析佇列，可在收藏頁手動解析';
+  @override
+  String get comicCacheCurrentEpisode => '快取本話';
+
+  @override
+  String get comicExportChapter => '匯出本話';
+
+  @override
+  String get comicExportWork => '匯出全部章節';
+
+  @override
+  String get comicExportChooseLocation => '選擇匯出位置';
+
+  @override
+  String get comicExportToGallery => '系統相簿';
+
+  @override
+  String get comicExportToGalleryHint => '儲存到 Pictures/Y300 下的作品/章節相簿';
+
+  @override
+  String get comicExportToDirectory => '資料夾';
+
+  @override
+  String get comicExportChangeDirectory => '變更';
+
+  @override
+  String get comicExportPickDirectory => '選擇資料夾…';
+
+  @override
+  String get comicExportDestinationHint => '相簿按作品/章節建立子相簿；資料夾保留相同的作品/章節結構。';
+
+  @override
+  String get comicExportWorkConfirm => '將把這部作品的全部章節圖片匯出到所選位置，過程中可隨時取消。';
+
+  @override
+  String get comicExportCancelling => '正在取消…';
+
+  @override
+  String get comicExportCancelled => '已取消匯出';
+
+  @override
+  String get comicExportFailed => '匯出失敗，請重試';
+
+  @override
+  String get comicExportNothingToExport => '沒有可匯出的圖片';
+
+  @override
+  String get libraryDetailDownloadQueued => '已加入快取佇列';
+
+  @override
+  String get libraryDetailViewDownloadQueue => '查看';
+
+  @override
+  String comicExportProgress(int completed, int total) {
+    return '正在匯出 $completed/$total';
+  }
+
+  @override
+  String comicExportPartialFailed(int failed) {
+    return '已失敗 $failed 張';
+  }
+
+  @override
+  String comicExportSavedTo(int count, String location) {
+    return '已匯出 $count 張到 $location';
+  }
+
+  @override
+  String comicExportPartialResult(int count, int failed) {
+    return '已匯出 $count 張，$failed 張失敗';
+  }
 }

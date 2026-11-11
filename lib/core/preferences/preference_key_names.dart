@@ -57,6 +57,8 @@ abstract final class PreferenceKeyNames {
   static const legacyCacheRootMigrationVersion =
       'storage.cache_root.migration_version';
   static const downloadStorageDirectory = 'download_storage_dir';
+  static const comicExportDestination = 'comic_export_destination';
+  static const comicExportDirectory = 'comic_export_directory';
 
   static const replyStickerLastGroupId = 'reply_sticker_last_group_id';
 

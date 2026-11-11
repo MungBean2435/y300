@@ -124,6 +124,12 @@ abstract final class PreferenceKeys {
   static const downloadStorageDirectory = PreferenceKey<String>(
     PreferenceKeyNames.downloadStorageDirectory,
   );
+  static const comicExportDestination = PreferenceKey<String>(
+    PreferenceKeyNames.comicExportDestination,
+  );
+  static const comicExportDirectory = PreferenceKey<String>(
+    PreferenceKeyNames.comicExportDirectory,
+  );
 
   static const replyStickerLastGroupId = PreferenceKey<String>(
     PreferenceKeyNames.replyStickerLastGroupId,

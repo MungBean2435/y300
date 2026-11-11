@@ -294,6 +294,9 @@ class ComicReaderCapability extends ReaderCapability {
     return ImageCacheRequest(
       cacheKey: cacheKey,
       sourceUrl: item.url,
+      // Same referer as the on-screen remote branch: the disk download must not
+      // look like a different client than the one that got the page to render.
+      referer: imageReferer,
       ownerType: ImageCacheOwnerType.comic,
       ownerId: viewState.comicId,
       role: ImageCacheRole.comicPage,
@@ -318,6 +321,7 @@ class ComicReaderCapability extends ReaderCapability {
     return ForumImageLoadSpec(
       kind: ForumImageKind.comicReaderPage,
       url: uri,
+      referer: imageReferer,
       ownerId: viewState.comicId,
       ownerType: ImageCacheOwnerType.comic,
       episodeId: viewState.episodeId,
@@ -340,6 +344,7 @@ class ComicReaderCapability extends ReaderCapability {
     return ForumImageLoadSpec(
       kind: ForumImageKind.comicReaderPage,
       url: uri,
+      referer: imageReferer,
       ownerId: viewState.comicId,
       ownerType: ImageCacheOwnerType.comic,
       episodeId: image.episodeId,

@@ -57,6 +57,7 @@ class DefaultImageCacheService
         ImageCacheDimensionRecorder,
         ImageCacheDecodeFailureReporter,
         ImageCacheFailureControl,
+        ImageCacheEntryEvictor,
         CacheBudgetParticipant {
   DefaultImageCacheService({
     required ImageCacheRepository repository,
@@ -560,6 +561,27 @@ class DefaultImageCacheService
       await _deleteRecord(record);
     }
     return records.length;
+  }
+
+  @override
+  Future<bool> evict(String cacheKey) async {
+    _syncFailureScope();
+    final normalized = cacheKey.trim();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    final record = await _repository.getByKey(normalized);
+    // The cooldown and the record describe the same attempt. Clearing it even
+    // when the row is already gone lets the next attempt actually re-download;
+    // an in-flight ensure task still completes normally afterwards.
+    _failureBackoff.removeForKey(normalized);
+    _failureEpoch++;
+    if (record == null) {
+      return false;
+    }
+    await _deleteRecord(record);
+    _mutationReporter.reportMutation(CacheNamespace.image);
+    return true;
   }
 
   @override

@@ -8,7 +8,21 @@ import 'package:y300/features/cache/domain/services/image_cache_service.dart';
 import 'package:y300/features/cache/presentation/widgets/delayed_image_loading_overlay.dart';
 import 'package:y300/features/cache/presentation/widgets/library_cached_image.dart';
 
-enum CachedImageRemoteDisplayPolicy { eager, afterCacheWrite }
+enum CachedImageRemoteDisplayPolicy {
+  eager,
+
+  /// Waits for the persistent cache write and settles on the error placeholder
+  /// when it fails. Used where a remote URL must not be fetched a second time.
+  afterCacheWrite,
+
+  /// Waits for the persistent cache write, but falls back to the shared remote
+  /// provider when the write fails instead of settling immediately.
+  ///
+  /// Reader surfaces use this: a transient WAF/session/network or index failure
+  /// must not turn one page into a permanently broken image. The remote branch
+  /// reuses the same cache manager and transport, so it is not a bypass.
+  afterCacheWriteThenRemote,
+}
 
 /// Binds an explicit cache request to [LibraryCachedImage].
 ///
@@ -34,6 +48,7 @@ class CachedLibraryImage extends ConsumerStatefulWidget {
     this.onImageFailed,
     this.onFirstFrameRendered,
     this.onLocalPathResolved,
+    this.onLocalPathInvalidated,
     this.imageProviderOverride,
     this.remoteImageProviderOverride,
     this.showDelayedLoadingIndicator = false,
@@ -105,6 +120,15 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
   String? _cacheReadyLocalPath;
   String? _scheduledDimensionIdentity;
   int _generation = 0;
+
+  /// Cache keys already evicted after a decode failure in this widget's
+  /// lifetime. Bounds self-healing to one re-download per entry so a genuinely
+  /// undecodable source cannot loop.
+  final Set<String> _evictedCacheKeys = <String>{};
+
+  /// Preferred local path proven undecodable; ignored until the caller changes
+  /// it, otherwise the restarted flow would hand the same bytes back.
+  String? _ignoredLocalPath;
 
   @override
   void initState() {
@@ -185,13 +209,16 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
               retryToken: widget.retryToken,
               onFirstFrameRendered: (source) =>
                   _handleFirstFrameRendered(request, source, generation),
-              onLocalImageDecodeFailed: (error, stackTrace) =>
+              onLocalImageDecodeFailed: (error, stackTrace) {
+                unawaited(
                   _handleLocalImageDecodeFailed(
                     request,
                     error,
                     stackTrace,
                     generation,
                   ),
+                );
+              },
               onImageFailed: () => _handleImageFailed(generation),
             ),
     );
@@ -234,12 +261,12 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
     widget.onImageFailed?.call();
   }
 
-  void _handleLocalImageDecodeFailed(
+  Future<void> _handleLocalImageDecodeFailed(
     ImageCacheRequest? request,
     Object error,
     StackTrace? stackTrace,
     int generation,
-  ) {
+  ) async {
     if (generation != _generation || request == null) {
       return;
     }
@@ -251,6 +278,33 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
         error: error,
         stackTrace: stackTrace,
       );
+    }
+    final cacheKey = request.cacheKey.trim();
+    // One self-healing attempt per entry: the local bytes are authoritative for
+    // display, so a corrupt or truncated file would otherwise fail every retry.
+    if (cacheKey.isEmpty || !_evictedCacheKeys.add(cacheKey)) {
+      return;
+    }
+    final failedLocalPath = (_localPath ?? _usablePreferredLocalPath)?.trim();
+    final evictor = service is ImageCacheEntryEvictor
+        ? service as ImageCacheEntryEvictor
+        : null;
+    var evicted = false;
+    try {
+      evicted = await evictor?.evict(cacheKey) ?? false;
+    } catch (_) {
+      // Eviction is best-effort; keep the existing failure presentation.
+    }
+    if (!mounted || generation != _generation) {
+      return;
+    }
+    if (failedLocalPath != null && failedLocalPath.isNotEmpty) {
+      _ignoredLocalPath = failedLocalPath;
+      widget.onLocalPathInvalidated?.call(failedLocalPath);
+      evicted = true;
+    }
+    if (evicted) {
+      setState(_restartCacheFlow);
     }
   }
 
@@ -302,7 +356,7 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
     _knownImageHeight = null;
     _cacheReadyLocalPath = null;
     _scheduledDimensionIdentity = null;
-    final preferredLocalPath = widget.preferredLocalPath?.trim();
+    final preferredLocalPath = _usablePreferredLocalPath;
     if (widget.imageProviderOverride != null) {
       _dimensionLocalPath = preferredLocalPath;
       return;
@@ -322,7 +376,8 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
       return;
     }
     if (request.cacheKey.trim().isEmpty) {
-      if (widget.remoteDisplayPolicy == CachedImageRemoteDisplayPolicy.eager) {
+      if (widget.remoteDisplayPolicy !=
+          CachedImageRemoteDisplayPolicy.afterCacheWrite) {
         _allowRemoteFallback = true;
       } else {
         _scheduleCacheFailure(_generation);
@@ -418,12 +473,28 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
       return;
     }
     if (!_hasUsableLocalPath(result)) {
-      if (widget.remoteDisplayPolicy ==
-          CachedImageRemoteDisplayPolicy.afterCacheWrite) {
-        setState(() {
-          _cacheWriteFailed = true;
-        });
-        _handleImageFailed(generation);
+      switch (widget.remoteDisplayPolicy) {
+        case CachedImageRemoteDisplayPolicy.afterCacheWrite:
+          setState(() {
+            _cacheWriteFailed = true;
+          });
+          _handleImageFailed(generation);
+        case CachedImageRemoteDisplayPolicy.afterCacheWriteThenRemote:
+          // The remote branch shares the same cache manager, transport and
+          // referer; showing it beats a page that is broken until the user
+          // retries by hand.
+          if (request.sourceUrl.trim().isEmpty) {
+            setState(() {
+              _cacheWriteFailed = true;
+            });
+            _handleImageFailed(generation);
+          } else {
+            setState(() {
+              _allowRemoteFallback = true;
+            });
+          }
+        case CachedImageRemoteDisplayPolicy.eager:
+          break;
       }
       return;
     }
@@ -473,10 +544,18 @@ class _CachedLibraryImageState extends ConsumerState<CachedLibraryImage> {
   }
 
   bool get _hasDisplaySource {
-    final preferredLocalPath = widget.preferredLocalPath?.trim();
     return widget.imageProviderOverride != null ||
         widget.request != null ||
-        (preferredLocalPath != null && preferredLocalPath.isNotEmpty);
+        _usablePreferredLocalPath != null;
+  }
+
+  /// Caller-provided local path, unless a previous decode proved it unusable.
+  String? get _usablePreferredLocalPath {
+    final preferredLocalPath = widget.preferredLocalPath?.trim();
+    if (preferredLocalPath == null || preferredLocalPath.isEmpty) {
+      return null;
+    }
+    return preferredLocalPath == _ignoredLocalPath ? null : preferredLocalPath;
   }
 
   void _scheduleDimensionProbe(ImageCacheRequest? request, int generation) {

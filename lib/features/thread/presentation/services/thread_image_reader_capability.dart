@@ -218,6 +218,9 @@ class ThreadImageReaderCapability extends ReaderCapability {
     return ImageCacheRequest(
       cacheKey: item.cacheKey,
       sourceUrl: item.url,
+      // Align the disk download with the remote display branch; both carry the
+      // page referer so attachment protection sees one consistent client.
+      referer: imageReferer,
       ownerType: ImageCacheOwnerType.thread,
       ownerId: item.ownerId,
       role: ImageCacheRole.threadInline,
@@ -236,6 +239,7 @@ class ThreadImageReaderCapability extends ReaderCapability {
     return ForumImageLoadSpec(
       kind: ForumImageKind.threadInline,
       url: uri,
+      referer: imageReferer,
       ownerId: request.ownerId,
       ownerType: ImageCacheOwnerType.thread,
       imageIndex: item.index,

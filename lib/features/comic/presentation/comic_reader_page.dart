@@ -4,12 +4,17 @@ import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:y300/core/network/yamibo_forum_transport_providers.dart';
+import 'package:y300/features/comic/data/providers/comic_download_queue_providers.dart';
+import 'package:y300/features/comic/domain/models/comic_download_queue_models.dart';
 import 'package:y300/features/comic/domain/models/comic_reader_exit_result.dart';
-import 'package:y300/features/comic/domain/services/comic_episode_sequence.dart';
 import 'package:y300/features/comic/domain/services/comic_episode_images_unavailable.dart';
+import 'package:y300/features/comic/domain/services/comic_episode_sequence.dart';
+import 'package:y300/features/comic/domain/services/comic_image_export_use_case.dart';
+import 'package:y300/features/comic/presentation/comic_download_queue_page.dart';
 import 'package:y300/features/comic/presentation/comic_presentation_models.dart';
 import 'package:y300/features/comic/presentation/comic_reader_capability.dart';
 import 'package:y300/features/comic/presentation/comic_text_resolver.dart';
+import 'package:y300/features/comic/presentation/services/comic_image_export_flow.dart';
 import 'package:y300/features/comic/presentation/controllers/comic_reader_controller.dart';
 import 'package:y300/features/comic/presentation/controllers/comic_comment_session_controller.dart';
 import 'package:y300/features/comic/presentation/providers/comic_comment_providers.dart';
@@ -25,6 +30,8 @@ import 'package:y300/l10n/app_localizations.dart';
 
 enum _ComicReaderMoreAction {
   refreshEpisode,
+  cacheCurrentEpisode,
+  exportCurrentEpisode,
   markReadToggle,
   setCurrentPageAsCover,
 }
@@ -255,6 +262,17 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         if (message != null) {
           showTransientSnackBar(context, message);
         }
+      case _ComicReaderMoreAction.cacheCurrentEpisode:
+        await _cacheCurrentEpisode(viewState);
+      case _ComicReaderMoreAction.exportCurrentEpisode:
+        await startComicImageExport(
+          context: context,
+          ref: ref,
+          comicId: viewState.comicId,
+          scope: ComicImageExportScope.chapter,
+          episodeId: viewState.episodeId,
+          workTitle: viewState.comicTitle,
+        );
       case _ComicReaderMoreAction.markReadToggle:
         final notice = await controller.setCurrentEpisodeRead(
           !viewState.isCurrentEpisodeRead,
@@ -270,6 +288,52 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
         }
       case _ComicReaderMoreAction.setCurrentPageAsCover:
         await _handleSetCoverWithFocus();
+    }
+  }
+
+  /// 把当前章节加入持久缓存队列（已缓存则自动跳过）。
+  Future<void> _cacheCurrentEpisode(ComicReaderViewState viewState) async {
+    try {
+      await ref.read(comicDownloadQueueProvider).enqueueTargets(
+        <ComicDownloadTarget>[
+          ComicDownloadTarget(
+            comicId: viewState.comicId,
+            episodeId: viewState.episodeId,
+            comicTitle: viewState.comicTitle,
+            episodeTitle: viewState.episodeTitle,
+          ),
+        ],
+      );
+      if (!mounted) {
+        return;
+      }
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.libraryDetailDownloadQueued),
+            action: SnackBarAction(
+              label: l10n.comicDownloadQueue,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ComicDownloadQueuePage(),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showTransientSnackBar(
+        context,
+        AppLocalizations.of(context)
+            .libraryDetailDownloadFailed(error.toString()),
+      );
     }
   }
 
@@ -345,6 +409,18 @@ class _ComicReaderPageState extends ConsumerState<ComicReaderPage> {
             value: _ComicReaderMoreAction.setCurrentPageAsCover,
             icon: Icons.image_outlined,
             label: l10n.comicSetCurrentPageCover,
+          ),
+          ReaderActionSheetItem<_ComicReaderMoreAction>(
+            id: 'cache-current-episode',
+            value: _ComicReaderMoreAction.cacheCurrentEpisode,
+            icon: Icons.download_for_offline_outlined,
+            label: l10n.comicCacheCurrentEpisode,
+          ),
+          ReaderActionSheetItem<_ComicReaderMoreAction>(
+            id: 'export-current-episode',
+            value: _ComicReaderMoreAction.exportCurrentEpisode,
+            icon: Icons.save_alt_outlined,
+            label: l10n.comicExportChapter,
           ),
         ],
       ),

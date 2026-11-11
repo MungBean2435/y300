@@ -12,7 +12,11 @@ import 'package:y300/features/comic/data/providers/comic_parsing_providers.dart'
 import 'package:y300/features/comic/data/providers/comic_episode_refresh_providers.dart';
 import 'package:y300/features/comic/data/providers/comic_reader_service_providers.dart';
 import 'package:y300/features/comic/presentation/adapters/comic_detail_adapter.dart';
+import 'package:y300/features/comic/domain/services/comic_image_export_use_case.dart';
+import 'package:y300/features/comic/presentation/comic_download_queue_page.dart';
 import 'package:y300/features/comic/presentation/comic_reader_page.dart';
+import 'package:y300/features/comic/presentation/services/comic_image_export_flow.dart';
+import 'package:y300/l10n/app_localizations.dart';
 import 'package:y300/features/composer_shared/data/providers/composer_providers.dart';
 import 'package:y300/features/history/data/providers/history_providers.dart';
 import 'package:y300/features/history/presentation/mappers/library_detail_history_visit_mapper.dart';
@@ -57,6 +61,24 @@ class ComicDetailPage extends ConsumerWidget {
       workId: comicId,
       shelfRefreshBus: ref.watch(libraryShelfRefreshBusProvider),
       imageReferer: ref.watch(forumImageRefererProvider),
+      appBarActionsBuilder: (actionContext) => IconButton(
+        key: const Key('comic-detail-export-work'),
+        tooltip: AppLocalizations.of(actionContext).comicExportWork,
+        icon: const Icon(Icons.save_alt_outlined),
+        onPressed: () => startComicImageExport(
+          context: actionContext,
+          ref: ref,
+          comicId: comicId,
+          scope: ComicImageExportScope.work,
+        ),
+      ),
+      onOpenDownloadQueue: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const ComicDownloadQueuePage(),
+          ),
+        );
+      },
       pickCoverImage: () async {
         // 用通用图片选择器选一张本地图作为自定义封面来源（仅取第一张）。
         final picked = await ref

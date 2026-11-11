@@ -97,10 +97,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(selectionHost.state?.selectionActions.length, 4);
+    // 整部缓存成为书架多选动作之一（详情页另有一键入口）。
+    expect(selectionHost.state?.selectionActions.length, 5);
     expect(
       selectionHost.state?.selectionActions.map((action) => action.id),
-      isNot(contains(SelectionActionIds.download)),
+      contains(SelectionActionIds.download),
     );
   });
 }

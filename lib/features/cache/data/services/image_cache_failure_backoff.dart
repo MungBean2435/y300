@@ -43,5 +43,15 @@ final class ImageCacheFailureBackoff {
   void remove(ImageCacheFailureIdentity identity) =>
       _missingSince.remove(identity);
 
+  /// Drops every remembered failure for [cacheKey].
+  ///
+  /// Eviction removes the entry the cooldown was describing, so a stale 404
+  /// marker must not survive it regardless of which referer produced it.
+  void removeForKey(String cacheKey) {
+    final normalized = cacheKey.trim();
+    if (normalized.isEmpty) return;
+    _missingSince.removeWhere((identity, _) => identity.cacheKey == normalized);
+  }
+
   void clear() => _missingSince.clear();
 }

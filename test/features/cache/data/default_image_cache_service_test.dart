@@ -1339,6 +1339,73 @@ void main() {
     expect(repository.records.containsKey('thread-1'), isFalse);
     expect(repository.records.containsKey('smiley-1'), isTrue);
   });
+  group('entry eviction', () {
+    test(
+      'removes file and index row so the next attempt downloads again',
+      () async {
+        final imageFile = await _temporaryFailureCacheImage();
+        final repository = _MemoryImageCacheRepository();
+        final downloader = _ControlledFailureDownloader(
+          onDownload: (_) async => imageFile.path,
+        );
+        final service = _missingImageService(
+          downloader: downloader,
+          repository: repository,
+        );
+        final request = _missingImageRequest();
+
+        final first = await service.ensureCached(request);
+        expect(first.success, isTrue);
+        expect(repository.records.containsKey(request.cacheKey), isTrue);
+        expect(await imageFile.exists(), isTrue);
+
+        expect(await service.evict(request.cacheKey), isTrue);
+        expect(repository.records.containsKey(request.cacheKey), isFalse);
+        expect(await imageFile.exists(), isFalse);
+        expect(await service.getCached(request.cacheKey), isNull);
+
+        // The downloader may hand the very same path back; a fresh file proves the
+        // entry was re-downloaded rather than served from the stale index.
+        await imageFile.writeAsBytes(<int>[4, 5, 6]);
+        final second = await service.ensureCached(request);
+        expect(second.success, isTrue);
+        expect(downloader.downloadCount, 2);
+      },
+    );
+
+    test('eviction clears the confirmed-missing cooldown', () async {
+      final imageFile = await _temporaryFailureCacheImage();
+      final downloader = _ControlledFailureDownloader(
+        onDownload: (call) => call == 1
+            ? Future<String>.error(_confirmedNotFound)
+            : Future<String>.value(imageFile.path),
+      );
+      final service = _missingImageService(
+        downloader: downloader,
+        failureBackoff: ImageCacheFailureBackoff(),
+      );
+      final request = _missingImageRequest();
+
+      expect((await service.ensureCached(request)).success, isFalse);
+      expect((await service.ensureCached(request)).success, isFalse);
+      expect(downloader.downloadCount, 1);
+
+      // No index row existed for a 404, yet the cooldown must still be dropped.
+      expect(await service.evict(request.cacheKey), isFalse);
+      final recovered = await service.ensureCached(request);
+      expect(recovered.success, isTrue);
+      expect(downloader.downloadCount, 2);
+    });
+
+    test('empty and unknown keys are no-ops', () async {
+      final service = _missingImageService(
+        downloader: _ControlledFailureDownloader(),
+      );
+      expect(await service.evict(''), isFalse);
+      expect(await service.evict('   '), isFalse);
+      expect(await service.evict('unknown/key'), isFalse);
+    });
+  });
 }
 
 const _confirmedNotFound = ForumResourceFileServiceException(

@@ -47,6 +47,8 @@ class UnifiedDetailPage extends StatefulWidget {
     this.onContinue,
     this.onRefreshCompleted,
     this.onFirstContentPresented,
+    this.onOpenDownloadQueue,
+    this.appBarActionsBuilder,
   });
 
   final DetailModuleAdapter adapter;
@@ -72,6 +74,15 @@ class UnifiedDetailPage extends StatefulWidget {
   final Future<void> Function(BuildContext context, ReaderRouteTarget target)?
   onContinue;
   final Future<void> Function(DetailRefreshResult result)? onRefreshCompleted;
+
+  /// Opens the module's persistent download queue from the "queued" snack bar.
+  /// The shared page stays module-agnostic, so the owner injects the route.
+  final VoidCallback? onOpenDownloadQueue;
+
+  /// Optional extra app bar actions contributed by the owning module
+  /// (for example comic image export). Kept as a builder so this shared page
+  /// never depends on a module-specific action.
+  final WidgetBuilder? appBarActionsBuilder;
   final FutureOr<void> Function(
     LibraryDetailHeader header,
     List<LibraryChapterItem> chapters,
@@ -110,10 +121,9 @@ class _UnifiedDetailPageState extends State<UnifiedDetailPage> {
 
   bool get _supportsChapterDownloads => _downloadAdapter != null;
 
-  // The bulk implementation stays available for persisted tasks and a
-  // reversible product-policy change, but the current UI only exposes
-  // chapter-level offline caching.
-  bool get _showsBulkDownloadActions => false;
+  // 详情页把整部缓存作为主入口（一次点击入队）；章节级缓存仍在章节行上。
+  // 未读章节缓存不再是主入口，收进 more 菜单。
+  bool get _showsBulkDownloadActions => true;
 
   DetailChapterDownloadActivityAdapter? get _downloadActivityAdapter {
     final adapter = widget.adapter;
@@ -352,13 +362,14 @@ class _UnifiedDetailPageState extends State<UnifiedDetailPage> {
               ),
               actions: [
                 if (_supportsChapterDownloads && _showsBulkDownloadActions)
-                  AppPopupMenuButton<String>(
+                  IconButton(
                     key: const Key('unified-detail-appbar-download'),
-                    tooltip: l10n.libraryDetailDownload,
-                    icon: const Icon(Icons.file_download),
-                    onSelected: _handleDownloadMenuAction,
-                    itemBuilder: _downloadMenuItems,
+                    tooltip: l10n.libraryDetailDownloadAll,
+                    icon: const Icon(Icons.download_for_offline_outlined),
+                    onPressed: _cacheAllChapters,
                   ),
+                if (widget.appBarActionsBuilder != null)
+                  widget.appBarActionsBuilder!(context),
                 IconButton(
                   key: const Key('unified-detail-appbar-filter'),
                   tooltip: l10n.libraryDetailFilterAndSort,
@@ -372,6 +383,12 @@ class _UnifiedDetailPageState extends State<UnifiedDetailPage> {
                       value: 'refresh',
                       label: l10n.libraryDetailRefresh,
                     ),
+                    if (_supportsChapterDownloads)
+                      AppPopupMenuItem<String>(
+                        key: const Key('unified-detail-cache-unread'),
+                        value: 'cache-unread',
+                        label: l10n.libraryDetailDownloadUnread,
+                      ),
                     AppPopupMenuItem<String>(
                       value: 'change-category',
                       label: l10n.libraryDetailChangeCategory,
@@ -670,33 +687,42 @@ class _UnifiedDetailPageState extends State<UnifiedDetailPage> {
     return '$date  Tid:${chapter.sourceTid ?? '-'}';
   }
 
-  List<PopupMenuEntry<String>> _downloadMenuItems(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return [
-      AppPopupMenuItem<String>(
-        value: 'download-unread',
-        label: l10n.libraryDetailDownloadUnread,
-      ),
-      AppPopupMenuItem<String>(
-        value: 'download-all',
-        label: l10n.libraryDetailDownloadAll,
-      ),
-    ];
+  /// 一键缓存整部作品：入队后立即反馈，并提供队列入口。
+  Future<void> _cacheAllChapters() {
+    return _runBulkCache(
+      (adapter) => adapter.downloadAll(workId: widget.workId),
+    );
   }
 
-  Future<void> _handleDownloadMenuAction(String value) async {
+  Future<void> _cacheUnreadChapters() {
+    return _runBulkCache(
+      (adapter) => adapter.downloadUnread(workId: widget.workId),
+    );
+  }
+
+  Future<void> _runBulkCache(
+    Future<void> Function(DetailChapterDownloadAdapter adapter) enqueue,
+  ) async {
     final downloadAdapter = _downloadAdapter;
     if (downloadAdapter == null) {
       return;
     }
     try {
-      if (value == 'download-unread') {
-        await downloadAdapter.downloadUnread(workId: widget.workId);
+      await enqueue(downloadAdapter);
+      if (!mounted) {
         return;
       }
-      if (value == 'download-all') {
-        await downloadAdapter.downloadAll(workId: widget.workId);
-      }
+      final l10n = AppLocalizations.of(context);
+      final openQueue = widget.onOpenDownloadQueue;
+      _showDetailSnackBar(
+        l10n.libraryDetailDownloadQueued,
+        action: openQueue == null
+            ? null
+            : SnackBarAction(
+                label: l10n.libraryDetailViewDownloadQueue,
+                onPressed: openQueue,
+              ),
+      );
     } catch (error) {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
@@ -1066,6 +1092,10 @@ class _UnifiedDetailPageState extends State<UnifiedDetailPage> {
       await _refreshAndShowFeedback();
       return;
     }
+    if (value == 'cache-unread') {
+      await _cacheUnreadChapters();
+      return;
+    }
     if (value == 'change-category') {
       await _showMoveCategorySheet();
       return;
@@ -1150,13 +1180,13 @@ class _UnifiedDetailPageState extends State<UnifiedDetailPage> {
     }
   }
 
-  void _showDetailSnackBar(String message) {
+  void _showDetailSnackBar(String message, {SnackBarAction? action}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: Text(message), action: action));
   }
 
   Future<void> _showEditMetadataSheet() async {

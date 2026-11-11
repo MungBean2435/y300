@@ -91,9 +91,15 @@ void main() {
         find.byKey(const ValueKey<String>('unified-detail-chapter-comic:1:e1')),
         findsOneWidget,
       );
+      // 整部缓存现在是一等入口：支持章节下载的模块必须出现单按钮。
       expect(
         find.byKey(const Key('unified-detail-appbar-download')),
-        findsNothing,
+        findsOneWidget,
+      );
+      // 详情页注入的导出入口（相册/文件夹由后续弹层选择）。
+      expect(
+        find.byKey(const Key('comic-detail-export-work')),
+        findsOneWidget,
       );
       expect(find.byIcon(Icons.offline_pin_outlined), findsOneWidget);
       expect(

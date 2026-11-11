@@ -291,6 +291,12 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
   final Set<int> _resolvedImageIndexes = <int>{};
   final Map<_EpisodeRetryProbeKey, Future<void>> _episodeRetryProbeInFlight =
       <_EpisodeRetryProbeKey, Future<void>>{};
+
+  /// Image URLs observed by the most recent probe of a chapter generation.
+  /// A manual retry that joins an in-flight read-only probe reuses them instead
+  /// of issuing a second request.
+  final Map<_EpisodeRetryProbeKey, List<String>> _episodeRetryProbeImageUrls =
+      <_EpisodeRetryProbeKey, List<String>>{};
   final Set<_AutomaticImageRecoveryKey> _automaticImageRecoveryAttempts =
       <_AutomaticImageRecoveryKey>{};
   final Set<_AutomaticImageRecoveryKey> _manualImageRetryRequests =
@@ -590,6 +596,8 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
       episodeId: current.episodeId,
       sourceTid: current.sourceTid,
       generation: generation,
+      rebuildWhenUrlChanged: true,
+      failedImageUrl: imageUrl,
     );
   }
 
@@ -618,6 +626,8 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
     required String episodeId,
     required String sourceTid,
     required int generation,
+    bool rebuildWhenUrlChanged = false,
+    String? failedImageUrl,
   }) async {
     if (!_ownsEpisodeOperation(episodeId: episodeId, generation: generation)) {
       return;
@@ -626,6 +636,17 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
     final existing = _episodeRetryProbeInFlight[probeKey];
     if (existing != null) {
       await existing;
+      final joinedUrls = _episodeRetryProbeImageUrls[probeKey];
+      if (rebuildWhenUrlChanged &&
+          failedImageUrl != null &&
+          joinedUrls != null) {
+        await _applyRefreshedImageUrlsAfterProbe(
+          episodeId: episodeId,
+          generation: generation,
+          imageUrls: joinedUrls,
+          failedImageUrl: failedImageUrl,
+        );
+      }
       return;
     }
 
@@ -634,6 +655,8 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
       episodeId: episodeId,
       sourceTid: sourceTid,
       generation: generation,
+      rebuildWhenUrlChanged: rebuildWhenUrlChanged,
+      failedImageUrl: failedImageUrl,
     );
     _episodeRetryProbeInFlight[probeKey] = probe;
     try {
@@ -649,9 +672,12 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
     required String episodeId,
     required String sourceTid,
     required int generation,
+    required bool rebuildWhenUrlChanged,
+    required String? failedImageUrl,
   }) async {
+    ComicEpisodeImagesFetchResult? fetchResult;
     try {
-      await _readerService.fetchEpisodeImages(sourceTid);
+      fetchResult = await _readerService.fetchEpisodeImages(sourceTid);
     } catch (_) {
       // The image retry still runs. A failed parse may follow a successful WAF
       // recovery, and the user must not lose the original direct retry path.
@@ -659,6 +685,108 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
     if (!_ownsEpisodeOperation(episodeId: episodeId, generation: generation)) {
       return;
     }
+    final fetched = fetchResult;
+    if (fetched is! ComicEpisodeImagesFetched) {
+      return;
+    }
+    _episodeRetryProbeImageUrls[(episodeId: episodeId, generation: generation)] =
+        List<String>.unmodifiable(fetched.imageUrls);
+    if (!rebuildWhenUrlChanged || failedImageUrl == null) {
+      return;
+    }
+    await _applyRefreshedImageUrlsAfterProbe(
+      episodeId: episodeId,
+      generation: generation,
+      imageUrls: fetched.imageUrls,
+      failedImageUrl: failedImageUrl,
+    );
+  }
+
+  /// Replaces the chapter image directory when a manual retry observed a
+  /// re-issued attachment link for the page that failed.
+  ///
+  /// Deliberately conservative: it only runs for the exact page the user
+  /// retried, only when the re-fetched list keeps the same page count, and only
+  /// when that page's URL actually changed. Structural changes stay the
+  /// explicit chapter refresh's job, and the automatic post-failure probe stays
+  /// read-only so a transient failure cannot rewrite a whole chapter.
+  Future<void> _applyRefreshedImageUrlsAfterProbe({
+    required String episodeId,
+    required int generation,
+    required List<String> imageUrls,
+    required String failedImageUrl,
+  }) async {
+    final current = state.value;
+    if (current == null || current.episodeId != episodeId) {
+      return;
+    }
+    final normalizedUrls = imageUrls
+        .map((url) => url.trim())
+        .where((url) => url.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedUrls.isEmpty ||
+        normalizedUrls.length != current.images.length) {
+      return;
+    }
+    final currentUrls = current.images
+        .map((image) => image.imageUrl.trim())
+        .toList(growable: false);
+    if (_sameUrls(normalizedUrls, currentUrls)) {
+      return;
+    }
+    final failedIndex = currentUrls.indexOf(failedImageUrl.trim());
+    if (failedIndex < 0 ||
+        normalizedUrls[failedIndex] == currentUrls[failedIndex]) {
+      // The page the user retried kept its URL: there is no stale link to fix.
+      return;
+    }
+    final repository = _repository;
+    if (repository is! ComicEpisodeImageDirectoryReplacer) {
+      return;
+    }
+    if (!_ownsEpisodeOperation(episodeId: episodeId, generation: generation)) {
+      return;
+    }
+    await (repository as ComicEpisodeImageDirectoryReplacer)
+        .replaceEpisodeImages(episodeId: episodeId, imageUrls: normalizedUrls);
+    if (!_ownsEpisodeOperation(episodeId: episodeId, generation: generation)) {
+      return;
+    }
+    final refreshed = await _repository.getEpisodeImages(episodeId: episodeId);
+    if (!_ownsEpisodeOperation(episodeId: episodeId, generation: generation)) {
+      return;
+    }
+    final latest = state.value;
+    if (latest == null || latest.episodeId != episodeId || refreshed.isEmpty) {
+      return;
+    }
+    final imageStates = _mapImageStates(refreshed);
+    final nextIndex = latest.currentImageIndex
+        .clamp(0, imageStates.length - 1)
+        .toInt();
+    state = AsyncData(
+      latest.copyWith(
+        images: imageStates,
+        currentImageIndex: nextIndex,
+        failedImageCount: _countFailedImages(imageStates),
+        cacheSummary: _buildCacheSummary(imageStates),
+        // A new URL list is a new engine session input: page identity, layout
+        // hints and session preparation all key off this revision.
+        imageSessionRevision: latest.imageSessionRevision + 1,
+      ),
+    );
+  }
+
+  bool _sameUrls(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _retryImageAfterAutomaticProbe({
@@ -826,6 +954,7 @@ class ComicReaderController extends AsyncNotifier<ComicReaderViewState> {
   void _clearAutomaticImageRecoveryTracking() {
     _automaticImageRecoveryAttempts.clear();
     _manualImageRetryRequests.clear();
+    _episodeRetryProbeImageUrls.clear();
   }
 
   void _finishEpisodeRefresh({

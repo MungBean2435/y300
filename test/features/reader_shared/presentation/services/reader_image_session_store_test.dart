@@ -122,6 +122,26 @@ void main() {
     expect(display, equals(precache));
   });
 
+  test('invalidateLocalPath clears only the matching promoted path', () {
+    final store = ReaderImageSessionStore();
+    addTearDown(store.dispose);
+    final item = _item();
+    store.startSession(
+      readerOwnerId: item.ownerId,
+      generation: 1,
+      items: [item],
+    );
+    final binding = store.bindingFor(item);
+    binding.promoteLocalPath('/cache/page.jpg');
+
+    expect(binding.invalidateLocalPath('/cache/other.jpg'), isFalse);
+    expect(binding.value.localPath, '/cache/page.jpg');
+
+    expect(binding.invalidateLocalPath('/cache/page.jpg'), isTrue);
+    expect(binding.value.localPath, isNull);
+    expect(binding.value.status, ReaderImageSessionStatus.idle);
+  });
+
   testWidgets('ReaderSessionImage consumes a promoted local path', (
     tester,
   ) async {

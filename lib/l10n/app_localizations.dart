@@ -9327,6 +9327,132 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'收藏成功，但未能加入解析队列，可在收藏页手动解析'**
   String get threadFavoriteParseQueueFailed;
+
+  /// No description provided for @comicCacheCurrentEpisode.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存本话'**
+  String get comicCacheCurrentEpisode;
+
+  /// No description provided for @comicExportChapter.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出本话'**
+  String get comicExportChapter;
+
+  /// No description provided for @comicExportWork.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出全部章节'**
+  String get comicExportWork;
+
+  /// No description provided for @comicExportChooseLocation.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择导出位置'**
+  String get comicExportChooseLocation;
+
+  /// No description provided for @comicExportToGallery.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统相册'**
+  String get comicExportToGallery;
+
+  /// No description provided for @comicExportToGalleryHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存到 Pictures/Y300 下的作品/章节相册'**
+  String get comicExportToGalleryHint;
+
+  /// No description provided for @comicExportToDirectory.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件夹'**
+  String get comicExportToDirectory;
+
+  /// No description provided for @comicExportChangeDirectory.
+  ///
+  /// In zh, this message translates to:
+  /// **'更改'**
+  String get comicExportChangeDirectory;
+
+  /// No description provided for @comicExportPickDirectory.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择文件夹…'**
+  String get comicExportPickDirectory;
+
+  /// No description provided for @comicExportDestinationHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'相册按作品/章节建立子相册；文件夹保留相同的作品/章节结构。'**
+  String get comicExportDestinationHint;
+
+  /// No description provided for @comicExportWorkConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'将把这部作品的全部章节图片导出到所选位置，过程中可随时取消。'**
+  String get comicExportWorkConfirm;
+
+  /// No description provided for @comicExportCancelling.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在取消…'**
+  String get comicExportCancelling;
+
+  /// No description provided for @comicExportCancelled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消导出'**
+  String get comicExportCancelled;
+
+  /// No description provided for @comicExportFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出失败，请重试'**
+  String get comicExportFailed;
+
+  /// No description provided for @comicExportNothingToExport.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可导出的图片'**
+  String get comicExportNothingToExport;
+
+  /// No description provided for @libraryDetailDownloadQueued.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入缓存队列'**
+  String get libraryDetailDownloadQueued;
+
+  /// No description provided for @libraryDetailViewDownloadQueue.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看'**
+  String get libraryDetailViewDownloadQueue;
+
+  /// No description provided for @comicExportProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在导出 {completed}/{total}'**
+  String comicExportProgress(int completed, int total);
+
+  /// No description provided for @comicExportPartialFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已失败 {failed} 张'**
+  String comicExportPartialFailed(int failed);
+
+  /// No description provided for @comicExportSavedTo.
+  ///
+  /// In zh, this message translates to:
+  /// **'已导出 {count} 张到 {location}'**
+  String comicExportSavedTo(int count, String location);
+
+  /// No description provided for @comicExportPartialResult.
+  ///
+  /// In zh, this message translates to:
+  /// **'已导出 {count} 张，{failed} 张失败'**
+  String comicExportPartialResult(int count, int failed);
 }
 
 class _AppLocalizationsDelegate

@@ -64,12 +64,16 @@ class ReaderSessionImage extends StatelessWidget {
         onImageResolved: onImageResolved,
         onImageFailed: onImageFailed,
         onLocalPathResolved: sessionBinding.promoteLocalPath,
+        onLocalPathInvalidated: sessionBinding.invalidateLocalPath,
         imageProviderOverride: imageProviderOverride,
         remoteImageProviderOverride: remoteImageProviderOverride,
         retryToken: retryToken,
         showDelayedLoadingIndicator: true,
         loadingIndicatorColor: loadingIndicatorColor,
-        remoteDisplayPolicy: CachedImageRemoteDisplayPolicy.afterCacheWrite,
+        // Reader pages must survive a failed cache write: fall back to the
+        // shared remote provider instead of showing a permanently broken page.
+        remoteDisplayPolicy:
+            CachedImageRemoteDisplayPolicy.afterCacheWriteThenRemote,
       ),
     );
   }

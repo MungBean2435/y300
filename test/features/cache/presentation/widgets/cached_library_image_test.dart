@@ -1299,6 +1299,137 @@ Widget _loadingHarness(
       ),
     ),
   );
+  testWidgets(
+    'afterCacheWriteThenRemote shows the remote image when the cache write fails',
+    (tester) async {
+      final image = await tester.runAsync(
+        () => createTestImage(width: 4, height: 3, cache: false),
+      );
+      final testImage = image!;
+      addTearDown(testImage.dispose);
+      final cacheService = _ControlledImageCacheService();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            imageCacheServiceProvider.overrideWithValue(cacheService),
+          ],
+          child: LocalizedTestApp(
+            home: CachedLibraryImage(
+              request: _request('thread-image'),
+              fit: BoxFit.cover,
+              placeholder: const SizedBox(key: Key('placeholder')),
+              errorPlaceholder: const SizedBox(key: Key('error-placeholder')),
+              remoteImageProviderOverride: _SynchronousImageProvider(testImage),
+              remoteDisplayPolicy:
+                  CachedImageRemoteDisplayPolicy.afterCacheWriteThenRemote,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      cacheService.completeGetCached('thread-image', null);
+      await tester.pump();
+      await tester.pump();
+      expect(cacheService.ensureStarted('thread-image'), isTrue);
+
+      cacheService.completeEnsure('thread-image', CachedImageResult.failed);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('error-placeholder')), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
+      expect(
+        _underlyingProvider(tester.widget<Image>(find.byType(Image)).image),
+        isA<_SynchronousImageProvider>(),
+      );
+    },
+  );
+
+  testWidgets(
+    'afterCacheWriteThenRemote settles on the error placeholder when remote also fails',
+    (tester) async {
+      final cacheService = _ControlledImageCacheService();
+      final remoteProvider = _ControlledImageProvider();
+      var failedCount = 0;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            imageCacheServiceProvider.overrideWithValue(cacheService),
+          ],
+          child: LocalizedTestApp(
+            home: CachedLibraryImage(
+              request: _request('thread-image'),
+              fit: BoxFit.cover,
+              placeholder: const SizedBox(key: Key('placeholder')),
+              errorPlaceholder: const SizedBox(key: Key('error-placeholder')),
+              remoteImageProviderOverride: remoteProvider,
+              remoteDisplayPolicy:
+                  CachedImageRemoteDisplayPolicy.afterCacheWriteThenRemote,
+              onImageFailed: () => failedCount += 1,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      cacheService.completeGetCached('thread-image', null);
+      await tester.pump();
+      await tester.pump();
+      cacheService.completeEnsure('thread-image', CachedImageResult.failed);
+      await tester.pump();
+      await tester.pump();
+
+      remoteProvider.fail();
+      await tester.pump();
+      await tester.pump();
+
+      expect(failedCount, 1);
+      expect(find.byKey(const Key('error-placeholder')), findsOneWidget);
+    },
+  );
+
+  testWidgets('a local decode failure evicts the entry once and restarts', (
+    tester,
+  ) async {
+    final directory = io.Directory.systemTemp.createTempSync('y300-evict-');
+    addTearDown(() {
+      if (directory.existsSync()) {
+        directory.deleteSync(recursive: true);
+      }
+    });
+    final corrupt = io.File('${directory.path}/corrupt.jpg')
+      ..writeAsStringSync('not an image');
+    final cacheService = _EvictingImageCacheService();
+    final invalidated = <String>[];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [imageCacheServiceProvider.overrideWithValue(cacheService)],
+        child: LocalizedTestApp(
+          home: CachedLibraryImage(
+            request: _request('comic/page'),
+            preferredLocalPath: corrupt.path,
+            fit: BoxFit.cover,
+            placeholder: const SizedBox(key: Key('placeholder')),
+            errorPlaceholder: const SizedBox(key: Key('error-placeholder')),
+            onLocalPathInvalidated: invalidated.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    for (var frame = 0; frame < 6; frame++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    expect(cacheService.evictedKeys, contains('comic/page'));
+    expect(invalidated, <String>[corrupt.path]);
+    // The restarted flow must ask the cache again instead of decoding the same
+    // bytes that just failed.
+    expect(cacheService.getCachedCount('comic/page'), greaterThanOrEqualTo(1));
+  });
+
 }
 
 io.File _createTempPng(WidgetTester tester) {
@@ -1430,6 +1561,18 @@ class _ControlledImageCacheService
     required Size size,
   }) async {
     recordedDimensions[cacheKey] = size;
+  }
+}
+
+
+class _EvictingImageCacheService extends _ControlledImageCacheService
+    implements ImageCacheEntryEvictor {
+  final List<String> evictedKeys = <String>[];
+
+  @override
+  Future<bool> evict(String cacheKey) async {
+    evictedKeys.add(cacheKey);
+    return true;
   }
 }
 

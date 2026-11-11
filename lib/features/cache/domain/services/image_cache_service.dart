@@ -46,6 +46,19 @@ abstract interface class ImageCacheFailureControl {
   void allowRetry(ImageCacheRequest request);
 }
 
+/// Optional self-healing capability for a single cache entry.
+///
+/// Readers call this after a local file fails to decode: the file itself is
+/// authoritative for display, so a corrupt, truncated or non-image response
+/// must be evicted before the next attempt can re-download it. Eviction stays a
+/// separate optional contract so basic download-only consumers and their test
+/// doubles do not grow a method they never use.
+abstract interface class ImageCacheEntryEvictor {
+  /// Drops the index record, the cached file and any failure cooldown for
+  /// [cacheKey]. Returns `true` when an entry existed and was removed.
+  Future<bool> evict(String cacheKey);
+}
+
 /// Optional read-only lookup used for layout metadata.
 ///
 /// Unlike [ImageCacheService.getCached], this does not count as a user-visible
