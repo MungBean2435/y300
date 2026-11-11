@@ -25,6 +25,8 @@ final class AppLogImageCacheDiagnosticRecorder
         'ms=${event.elapsedMilliseconds}',
         'owner=${event.ownerType}/${event.role}',
         'key=${event.cacheKeyFingerprint}',
+        if ((event.sourceHost ?? '').isNotEmpty)
+          'src=${event.sourceHost}${event.sourcePath ?? ''}',
         if (event.bytesReceived != null) 'bytes=${event.bytesReceived}',
         if (event.exceptionType.isNotEmpty) 'err=${event.exceptionType}',
       ].join(' '),

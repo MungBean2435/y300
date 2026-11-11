@@ -322,12 +322,26 @@ class DefaultComicImageExportUseCase implements ComicImageExportUseCase {
       sourceTid: _sourceTidOf(chapter.episodeId),
     );
     if (!refreshed) {
+      _log?.record(
+        level: AppLogLevel.warning,
+        scope: 'export',
+        code: 'link_refresh_failed',
+        detail: 'episode=${chapter.episodeId}',
+      );
       return null;
     }
     final images = await _comicRepository.getEpisodeImages(
       episodeId: chapter.episodeId,
     );
     if (images.length != chapter.images.length) {
+      _log?.record(
+        level: AppLogLevel.warning,
+        scope: 'export',
+        code: 'link_refresh_page_mismatch',
+        detail:
+            'episode=${chapter.episodeId} before=${chapter.images.length} '
+            'after=${images.length}',
+      );
       return null;
     }
     final ordered = List<ComicEpisodeImageItem>.of(images)

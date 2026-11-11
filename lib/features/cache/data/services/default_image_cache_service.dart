@@ -403,6 +403,7 @@ class DefaultImageCacheService
           error: error,
           elapsed: elapsed,
           reasonCode: reasonCode,
+          sourceUrl: request.sourceUrl,
         ),
       );
     } catch (_) {

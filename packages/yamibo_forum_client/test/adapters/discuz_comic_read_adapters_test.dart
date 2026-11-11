@@ -113,6 +113,48 @@ void main() {
     expect(success.metadata.origin, DataReadOrigin.network);
   });
 
+  test(
+    'catalog prefers the real attachment over the expiring thumbnail',
+    () async {
+      final thread = _FakeThreadRepository(
+        _detail(
+          posts: [
+            ThreadPost(
+              pid: 'p1',
+              author: 'author',
+              authorId: 'u1',
+              message:
+                  '<img src="forum.php?mod=image&aid=5&size=300x300&key=old&nocache=yes&type=fixnone" '
+                  'file="data/attachment/forum/full.jpg">',
+              number: 1,
+              isFirst: true,
+              dateline: 'now',
+            ),
+          ],
+        ),
+      );
+      final repository = DiscuzApiComicEpisodeCatalogRepository(
+        threadRepository: thread,
+        config: config,
+      );
+
+      final result = await repository.loadCatalog(
+        const ComicEpisodeCatalogRequest(sourceTid: '100'),
+      );
+
+      final success =
+          result
+              as DataReadSuccess<
+                ComicEpisodeImageCatalog,
+                ComicEpisodeCatalogCapabilities
+              >;
+      expect(
+        success.data.images.single.url,
+        'https://example.test/data/attachment/forum/full.jpg',
+      );
+    },
+  );
+
   test('catalog distinguishes a valid empty first post from failure', () async {
     final repository = DiscuzApiComicEpisodeCatalogRepository(
       threadRepository: _FakeThreadRepository(_detail()),

@@ -53,6 +53,8 @@ final class ImageCacheFailureDiagnostic {
     required this.elapsedMilliseconds,
     this.bytesReceived,
     this.statusCode,
+    this.sourceHost,
+    this.sourcePath,
   });
 
   final ImageCacheDiagnosticStage stage;
@@ -67,6 +69,10 @@ final class ImageCacheFailureDiagnostic {
 
   /// HTTP status when the failure came from a resource response.
   final int? statusCode;
+
+  /// 失败资源的主机与路径（不含 query/fragment，避免暴露临时 token）。
+  final String? sourceHost;
+  final String? sourcePath;
 
   static String fingerprint(String cacheKey) {
     final digest = sha256.convert(utf8.encode(cacheKey.trim())).toString();
@@ -186,6 +192,21 @@ final class _ImageCacheLogWindow {
 }
 
 /// Builds a stable diagnostic classification without inspecting error text.
+String? _sourceHost(String? sourceUrl) {
+  final uri = sourceUrl == null ? null : Uri.tryParse(sourceUrl.trim());
+  final host = uri?.host.trim();
+  return host == null || host.isEmpty ? null : host;
+}
+
+String? _sourcePath(String? sourceUrl) {
+  final uri = sourceUrl == null ? null : Uri.tryParse(sourceUrl.trim());
+  final path = uri?.path.trim();
+  if (path == null || path.isEmpty) {
+    return null;
+  }
+  return path.length > 80 ? '...${path.substring(path.length - 77)}' : path;
+}
+
 ImageCacheFailureDiagnostic buildImageCacheFailureDiagnostic({
   required ImageCacheDiagnosticStage stage,
   required String cacheKey,
@@ -194,6 +215,7 @@ ImageCacheFailureDiagnostic buildImageCacheFailureDiagnostic({
   required Object error,
   required Duration elapsed,
   String? reasonCode,
+  String? sourceUrl,
 }) {
   final classification = _classifyFailure(stage, error);
   return ImageCacheFailureDiagnostic(
@@ -207,6 +229,8 @@ ImageCacheFailureDiagnostic buildImageCacheFailureDiagnostic({
     elapsedMilliseconds: elapsed.inMilliseconds,
     bytesReceived: classification.bytesReceived,
     statusCode: classification.statusCode,
+    sourceHost: _sourceHost(sourceUrl),
+    sourcePath: _sourcePath(sourceUrl),
   );
 }
 

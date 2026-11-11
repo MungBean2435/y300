@@ -70,7 +70,21 @@ final class DiscuzApiComicEpisodeCatalogRepository
             diagnosticMessage: 'comic_episode_first_post_missing',
           );
         }
-        final references = _images.collectFromPost(firstPosts.first);
+        // Discuz 常见写法：`src` 是带过期 key 的缩略图
+        // (forum.php?mod=image&aid=...&key=...)，真实文件在 file/zoomfile。
+        // 漫画目录必须取原始地址，否则过期后整章 404（导出/阅读同时失败）。
+        final references = _images.collectFromPost(
+          firstPosts.first,
+          options: const ForumImageSourceOptions(
+            domAttributes: <String>[
+              'zoomfile',
+              'file',
+              'data-src',
+              'data-original',
+              'src',
+            ],
+          ),
+        );
         return DataReadSuccess(
           data: ComicEpisodeImageCatalog(
             sourceTid: sourceTid,
